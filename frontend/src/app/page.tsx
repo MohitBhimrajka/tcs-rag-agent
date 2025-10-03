@@ -2,44 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-// --- (All TypeScript types, just add current_task to JobStatusResponse) ---
+// --- (All TypeScript types remain the same) ---
 type JobStatus = 'idle' | 'uploading' | 'processing' | 'completed' | 'failed';
-
-interface Job { 
-  run_id: number; 
-  status: string; 
-}
-
-interface JobStatusResponse { 
-  run_id: number; 
-  status: string; 
-  current_task?: string; 
-  start_time: string;
-  end_time?: string;
-}
-
+interface Job { run_id: number; status: string; }
+interface JobStatusResponse { run_id: number; status: string; current_task?: string; start_time: string; end_time?: string; }
 interface ResultData {
   consolidated_revenue?: { value: number; unit: string; source_page: number };
   consolidated_net_income?: { value: number; unit: string; source_page: number };
   diluted_eps?: { value: number; unit: string; source_page: number };
-  top_3_segment_contributions?: Array<{ segment: string; percentage: number }>;
-  employee_utilization?: { value: number; unit: string; source_page: number };
-  key_management_risks?: Array<{ risk: string; description: string }>;
+  top_3_segment_contributions?: Array<{ segment_name: string; percentage_contribution: number }>;
+  employee_utilization?: { rate_percentage: number; source_page: number };
+  key_management_risks?: Array<{ risk_summary: string }>;
 }
+interface TraceLog { timestamp: string; node_name: string; log_message: string; }
+interface JobResult { run_id: number; status: string; filename: string; results?: ResultData; trace_logs: TraceLog[]; }
 
-interface TraceLog {
-  timestamp: string;
-  node_name: string;
-  log_message: string;
-}
-
-interface JobResult {
-  run_id: number;
-  status: string;
-  filename: string;
-  results?: ResultData;
-  trace_logs: TraceLog[];
-}
 
 export default function ExtractionPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -53,9 +30,15 @@ export default function ExtractionPage() {
   const [result, setResult] = useState<JobResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // --- NEW STATE FOR AD-HOC Q&A ---
+  const [adHocQuestion, setAdHocQuestion] = useState('');
+  const [adHocAnswer, setAdHocAnswer] = useState('');
+  const [isAdHocLoading, setIsAdHocLoading] = useState(false);
+  const [adHocError, setAdHocError] = useState('');
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-  // --- NEW: Fetch available documents on component mount ---
+  // --- (All existing functions remain the same) ---
   const fetchAvailableFiles = useCallback(async () => {
     try {
       const response = await fetch(`${API_URL}/api/v1/documents`);
@@ -70,7 +53,6 @@ export default function ExtractionPage() {
     }
   }, [API_URL]);
 
-  // Function to fetch the final results
   const fetchResults = useCallback(async (runId: number) => {
     try {
       const response = await fetch(`${API_URL}/api/v1/extractions/${runId}/results`);
@@ -89,7 +71,6 @@ export default function ExtractionPage() {
     fetchAvailableFiles();
   }, [fetchAvailableFiles]);
 
-  // --- NEW: Handle file upload ---
   const handleFileUpload = async () => {
     if (!file) return;
     setJobStatus('uploading');
@@ -145,7 +126,6 @@ export default function ExtractionPage() {
     }
   };
 
-  // --- MODIFIED: Poll Job Status to include current_task ---
   const pollJobStatus = useCallback(async () => {
     if (!job || jobStatus !== 'processing') return;
     try {
@@ -171,15 +151,37 @@ export default function ExtractionPage() {
       return () => clearInterval(intervalId); // Cleanup on component unmount
     }
   }, [jobStatus, pollJobStatus]);
-  
+
+  // --- NEW FUNCTION TO HANDLE AD-HOC QUESTIONS ---
+  const handleAdHocQuery = async () => {
+    if (!adHocQuestion.trim() || !selectedFile) return;
+    setIsAdHocLoading(true);
+    setAdHocAnswer('');
+    setAdHocError('');
+    try {
+      const response = await fetch(`${API_URL}/api/v1/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: selectedFile, question: adHocQuestion }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.detail || 'Failed to get answer.');
+      }
+      setAdHocAnswer(data.answer);
+    } catch (err) {
+      setAdHocError(err instanceof Error ? err.message : 'An unknown error occurred.');
+    } finally {
+      setIsAdHocLoading(false);
+    }
+  };
+
   return (
     <div style={styles.container}>
       <h1 style={styles.header}>Financial Document Extraction Agent</h1>
-      <p style={styles.subHeader}>
-        Using a multi-modal AI agent to extract structured data from financial reports.
-      </p>
+      <p style={styles.subHeader}>An interactive tool to extract structured and ad-hoc data from financial reports.</p>
 
-      {/* --- NEW FILE MANAGEMENT SECTION --- */}
+      {/* --- Step 1: File Management (Unchanged) --- */}
       <div style={styles.card}>
         <div style={styles.cardHeader}><h3>Step 1: Select or Upload a Document</h3></div>
         <div style={styles.cardBody}>
@@ -217,24 +219,18 @@ export default function ExtractionPage() {
         </div>
       </div>
 
-      {/* --- MODIFIED EXTRACTION SECTION --- */}
+      {/* --- Step 2: TCS Challenge Extraction --- */}
       <div style={styles.card}>
-        <div style={styles.cardHeader}><h3>Step 2: Start Extraction</h3></div>
+        <div style={styles.cardHeader}><h3>Step 2: TCS Challenge: Key Metrics Extraction</h3></div>
         <div style={styles.cardBody}>
-          <p style={styles.description}>
-            {selectedFile ? `Ready to extract from: ${selectedFile}` : 'Please select a file first.'}
-          </p>
-          <button
-            style={!selectedFile || jobStatus === 'processing' ? styles.buttonDisabled : styles.button}
-            onClick={handleStartExtraction}
-            disabled={!selectedFile || jobStatus === 'processing'}
-          >
-            {jobStatus === 'processing' ? 'Processing...' : `Extract from ${selectedFile || 'Selected File'}`}
+          <p style={styles.description}>Run the pre-defined extraction job to get key financial metrics from the selected document.</p>
+          <button style={!selectedFile || jobStatus === 'processing' ? styles.buttonDisabled : styles.button} onClick={handleStartExtraction} disabled={!selectedFile || jobStatus === 'processing'}>
+            {jobStatus === 'processing' ? 'Processing...' : `Start Challenge on ${selectedFile || '...'}`}
           </button>
         </div>
       </div>
       
-      {/* --- MODIFIED MONITORING SECTION --- */}
+      {/* --- Step 3: Monitoring (Unchanged) --- */}
       {job && (
         <div style={styles.card}>
             <div style={styles.cardHeader}><h3>Step 3: Monitor Agent Progress</h3></div>
@@ -246,13 +242,29 @@ export default function ExtractionPage() {
         </div>
       )}
       
+      {/* --- Step 4: Results Display (Now includes Ad-Hoc Q&A) --- */}
       {result && jobStatus === 'completed' && (
         <div style={styles.card}>
-            <div style={styles.cardHeader}>
-                <h3>Step 4: View Results</h3>
-            </div>
+            <div style={styles.cardHeader}><h3>Step 3: View Results & Ask Follow-up Questions</h3></div>
             <div style={styles.cardBody}>
                 <ResultsDisplay results={result} />
+                
+                {/* --- NEW AD-HOC Q&A SECTION --- */}
+                <div style={styles.adHocSection}>
+                    <h4>Ask a Follow-up Question</h4>
+                    <p style={styles.description}>Now that the document is processed, ask any question you want.</p>
+                    <textarea
+                        style={styles.textArea}
+                        placeholder="e.g., What was the company's free cash flow in the previous year?"
+                        value={adHocQuestion}
+                        onChange={(e) => setAdHocQuestion(e.target.value)}
+                    />
+                    <button style={isAdHocLoading ? styles.buttonDisabled : styles.button} onClick={handleAdHocQuery} disabled={isAdHocLoading}>
+                        {isAdHocLoading ? 'Thinking...' : 'Get Answer'}
+                    </button>
+                    {adHocAnswer && <div style={styles.answerBox}>{adHocAnswer}</div>}
+                    {adHocError && <p style={styles.errorText}>{adHocError}</p>}
+                </div>
             </div>
         </div>
       )}
@@ -269,7 +281,99 @@ export default function ExtractionPage() {
   );
 }
 
-// --- MODIFIED StatusIndicator COMPONENT ---
+// --- NEW: Nicely Formatted Structured Results Component ---
+const StructuredResults = ({ results }: { results: ResultData }) => (
+  <div>
+    <h4>TCS Challenge: Key Metrics</h4>
+    <table style={styles.table}>
+      <thead>
+        <tr>
+          <th style={styles.th}>Metric</th>
+          <th style={styles.th}>Value</th>
+          <th style={styles.th}>Unit</th>
+          <th style={styles.th}>Source Page</th>
+        </tr>
+      </thead>
+      <tbody>
+        {results.consolidated_revenue && (
+          <tr>
+            <td style={styles.td}>Consolidated Revenue</td>
+            <td style={styles.td}>{results.consolidated_revenue.value.toLocaleString()}</td>
+            <td style={styles.td}>{results.consolidated_revenue.unit}</td>
+            <td style={styles.td}>{results.consolidated_revenue.source_page}</td>
+          </tr>
+        )}
+        {results.consolidated_net_income && (
+          <tr>
+            <td style={styles.td}>Consolidated Net Income</td>
+            <td style={styles.td}>{results.consolidated_net_income.value.toLocaleString()}</td>
+            <td style={styles.td}>{results.consolidated_net_income.unit}</td>
+            <td style={styles.td}>{results.consolidated_net_income.source_page}</td>
+          </tr>
+        )}
+        {results.diluted_eps && (
+           <tr>
+            <td style={styles.td}>Diluted EPS</td>
+            <td style={styles.td}>{results.diluted_eps.value}</td>
+            <td style={styles.td}>{results.diluted_eps.unit}</td>
+            <td style={styles.td}>{results.diluted_eps.source_page}</td>
+          </tr>
+        )}
+        {results.employee_utilization && (
+           <tr>
+            <td style={styles.td}>Employee Utilization</td>
+            <td style={styles.td}>{results.employee_utilization.rate_percentage}</td>
+            <td style={styles.td}>%</td>
+            <td style={styles.td}>{results.employee_utilization.source_page}</td>
+          </tr>
+        )}
+      </tbody>
+    </table>
+
+    {results.top_3_segment_contributions && results.top_3_segment_contributions.length > 0 && (
+      <>
+        <h5 style={styles.subMetricHeader}>Top 3 Segment Contributions</h5>
+        <table style={styles.table}>
+           <thead><tr><th style={styles.th}>Segment</th><th style={styles.th}>Contribution (%)</th></tr></thead>
+           <tbody>
+            {results.top_3_segment_contributions.map((seg, i) => (
+              <tr key={i}><td style={styles.td}>{seg.segment_name}</td><td style={styles.td}>{seg.percentage_contribution}</td></tr>
+            ))}
+           </tbody>
+        </table>
+      </>
+    )}
+
+    {results.key_management_risks && results.key_management_risks.length > 0 && (
+      <>
+        <h5 style={styles.subMetricHeader}>Key Management Risks</h5>
+        <ul style={styles.riskList}>
+          {results.key_management_risks.map((risk, i) => <li key={i}>{risk.risk_summary}</li>)}
+        </ul>
+      </>
+    )}
+  </div>
+);
+
+
+// --- MODIFIED: ResultsDisplay now uses the new component ---
+const ResultsDisplay = ({ results }: { results: JobResult }) => (
+    <div>
+        {results.results && <StructuredResults results={results.results} />}
+        <h4 style={{marginTop: '20px'}}>Agent Reasoning Trace:</h4>
+        <div style={styles.logsContainer}>
+            {results.trace_logs.map((log, index) => (
+                <div key={index} style={styles.logEntry}>
+                    <strong>{log.node_name}</strong>
+                    <pre style={styles.logMessage}>{log.log_message}</pre>
+                </div>
+            ))}
+        </div>
+    </div>
+);
+
+
+// --- (StatusIndicator component is unchanged) ---
 const StatusIndicator = ({ status, currentTask }: { status: JobStatus, currentTask: string }) => {
   const statusInfo = {
     processing: { text: currentTask || 'Agent is processing...', color: '#856404', bg: '#fff3cd' },
@@ -289,26 +393,7 @@ const StatusIndicator = ({ status, currentTask }: { status: JobStatus, currentTa
   return null;
 };
 
-// --- (ResultsDisplay component is unchanged) ---
-const ResultsDisplay = ({ results }: { results: JobResult }) => (
-    <div>
-        <h4>Extracted Key Metrics:</h4>
-        <pre style={styles.codeBlock}>
-            {JSON.stringify(results.results, null, 2)}
-        </pre>
-        <h4 style={{marginTop: '20px'}}>Agent Reasoning Trace:</h4>
-        <div style={styles.logsContainer}>
-            {results.trace_logs.map((log, index) => (
-                <div key={index} style={styles.logEntry}>
-                    <strong>{log.node_name}</strong>
-                    <pre style={styles.logMessage}>{log.log_message}</pre>
-                </div>
-            ))}
-        </div>
-    </div>
-);
-
-// --- ENHANCED INLINE STYLES ---
+// --- ADD NEW STYLES for table and Q&A section ---
 const styles: { [key: string]: React.CSSProperties } = {
   container: { width: '100%', maxWidth: '900px', padding: '20px' },
   header: { textAlign: 'center', fontSize: '2rem', marginBottom: '0.5rem', color: '#2c3e50' },
@@ -329,4 +414,12 @@ const styles: { [key: string]: React.CSSProperties } = {
   formGroup: { marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' },
   select: { padding: '8px 12px', borderRadius: '4px', border: '1px solid #dee2e6', fontSize: '14px', backgroundColor: 'white' },
   fileInput: { padding: '8px', borderRadius: '4px', border: '1px solid #dee2e6', marginBottom: '0.5rem' },
+  adHocSection: { borderTop: '1px solid #dee2e6', marginTop: '2rem', paddingTop: '1.5rem' },
+  textArea: { width: '100%', minHeight: '80px', padding: '10px', borderRadius: '4px', border: '1px solid #dee2e6', fontSize: '14px', fontFamily: 'inherit', marginBottom: '1rem' },
+  answerBox: { backgroundColor: '#e9ecef', padding: '1rem', borderRadius: '6px', whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: '14px', marginTop: '1rem', border: '1px solid #dee2e6' },
+  table: { width: '100%', borderCollapse: 'collapse', marginTop: '1rem', marginBottom: '1.5rem' },
+  th: { border: '1px solid #dee2e6', padding: '8px', textAlign: 'left', backgroundColor: '#f8f9fa', fontWeight: 600 },
+  td: { border: '1px solid #dee2e6', padding: '8px' },
+  subMetricHeader: { marginTop: '1.5rem', marginBottom: '0.5rem' },
+  riskList: { paddingLeft: '20px', marginTop: '0.5rem' },
 };

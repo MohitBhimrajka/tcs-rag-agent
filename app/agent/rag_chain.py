@@ -134,3 +134,59 @@ def create_rag_chain(
     )
     
     return rag_chain
+
+
+def create_simple_rag_chain(
+    text_retriever: VectorStoreRetriever,
+    table_retriever: VectorStoreRetriever,
+):
+    """
+    Creates a simplified RAG chain that answers a direct question with a string response.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY environment variable not set!")
+
+    # Use the powerful model for answering
+    answer_llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", google_api_key=api_key, temperature=0)
+
+    # Enhanced prompt for direct answers
+    simple_answer_prompt = ChatPromptTemplate.from_template(
+        "You are an expert financial analyst with deep knowledge of corporate financial reports. "
+        "Answer the user's question based ONLY on the provided context from the financial document.\n\n"
+        
+        "**INSTRUCTIONS:**\n"
+        "1. Provide clear, concise answers based solely on the given context\n"
+        "2. If you find relevant data, include the source page number when available\n"
+        "3. If the information is not in the context, clearly state 'This information is not available in the provided document'\n"
+        "4. For numerical data, format numbers clearly (use commas for large numbers)\n"
+        "5. If you find related but not exact information, mention it as 'Related information available...'\n"
+        "6. Be conversational but professional in your response\n\n"
+        
+        "**CONTEXT FROM DOCUMENT:**\n"
+        "{context}\n\n"
+        
+        "**QUESTION:**\n"
+        "{question}\n\n"
+        
+        "**ANSWER:**"
+    )
+
+    def retrieve_contexts(question: str):
+        text_docs = text_retriever.invoke(question)
+        table_docs = table_retriever.invoke(question)
+        combined_context = (
+            f"--- TEXTUAL CONTEXT ---\n{format_docs(text_docs)}\n\n"
+            f"--- TABULAR CONTEXT ---\n{format_docs(table_docs)}"
+        )
+        return {"context": combined_context, "question": question}
+
+    simple_rag_chain = (
+        RunnablePassthrough()
+        | (lambda x: retrieve_contexts(x['question']))
+        | simple_answer_prompt
+        | answer_llm
+        | StrOutputParser()
+    )
+    
+    return simple_rag_chain

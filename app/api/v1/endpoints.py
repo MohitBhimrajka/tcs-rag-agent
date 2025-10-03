@@ -14,7 +14,7 @@ from app.agent.tools import create_rag_tools
 # from app.agent.graph import create_agent_graph, set_global_db_session
 
 # --- ADD THESE NEW IMPORTS ---
-from app.agent.rag_chain import create_rag_chain
+from app.agent.rag_chain import create_rag_chain, create_simple_rag_chain
 from app.agent.parsers import TASK_PARSER_MAP, ParsedRevenue, ParsedNetIncome, ParsedEPS, ParsedSegmentContribution, ParsedUtilization, ParsedKeyRisks
 
 from app.schemas.extraction import FinancialReportData, ConsolidatedRevenue, ConsolidatedNetIncome, DilutedEPS, SegmentContribution, EmployeeUtilization, KeyManagementRisk
@@ -31,6 +31,11 @@ router = APIRouter(
 class ExtractionRequest(BaseModel):
     filename: str
     question: str = "What is the final reported Consolidated Revenue for the group in USD Billion?"
+
+# --- ADD THIS NEW PYDANTIC MODEL ---
+class AdHocQueryRequest(BaseModel):
+    filename: str
+    question: str
 
 # This is the prompt that instructs our planner agent.
 # It's a critical piece of the agent's intelligence.
@@ -167,6 +172,37 @@ async def extract_data_with_agent(
         crud.update_extraction_run_status(db=db, run_id=run_id, status="failed")
         crud.update_extraction_run_task(db, run_id, "Failed")
         raise HTTPException(status_code=500, detail=error_detail)
+
+
+# --- ADD THIS NEW ENDPOINT ---
+@router.post("/query")
+async def handle_ad_hoc_query(request: AdHocQueryRequest):
+    """
+    Handles a single, ad-hoc question against a processed document.
+    """
+    try:
+        pdf_path = os.path.join("documents", request.filename)
+        if not os.path.exists(pdf_path):
+            raise HTTPException(status_code=404, detail=f"Document '{request.filename}' not found.")
+
+        store_name = os.path.splitext(request.filename)[0]
+        text_store_path = os.path.join("app/data/vector_stores", f"{store_name}_text")
+        table_store_path = os.path.join("app/data/vector_stores", f"{store_name}_tables")
+        
+        if not os.path.exists(text_store_path) or not os.path.exists(table_store_path):
+            raise HTTPException(status_code=400, detail="Document has not been processed yet. Please run the initial extraction first.")
+
+        text_retriever, table_retriever = DocumentProcessor.load_retrievers(text_store_path, table_store_path)
+        
+        rag_chain = create_simple_rag_chain(text_retriever, table_retriever)
+        
+        answer = await rag_chain.ainvoke({"question": request.question})
+        
+        return {"answer": answer}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
+
 
 # --- ADD THE FOLLOWING NEW ENDPOINTS ---
 

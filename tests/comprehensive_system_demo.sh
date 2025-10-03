@@ -124,9 +124,19 @@ echo "## 3. Agent Reasoning Trace" >> "$OUTPUT_FILE"
 echo "" >> "$OUTPUT_FILE"
 echo "$RESULTS_JSON" | jq -r '.trace_logs[] | "#### Node: `\(.node_name)`\n**Timestamp:** \(.timestamp)\n```\n\(.log_message)\n```\n"' >> "$OUTPUT_FILE"
 
+# --- ADD THIS NEW SECTION ---
+echo ""
+echo "5️⃣  Testing Ad-Hoc Query Endpoint"
+echo "---------------------------------------------"
+echo "POST $API_URL/query"
+curl -s -X POST "$API_URL/query" \
+  -H "Content-Type: application/json" \
+  -d "{\"filename\": \"$FILENAME\", \"question\": \"What was the total number of employees at the end of the fiscal year?\"}" \
+  | jq .
+
 echo ""
 echo "=============================================================="
-echo "🎉 REPORT GENERATION COMPLETE!"
+echo "🎉 SYSTEM VALIDATION COMPLETE!"
 echo "=============================================================="
 echo ""
 echo "✅ A detailed Markdown report has been saved to: $OUTPUT_FILE"
