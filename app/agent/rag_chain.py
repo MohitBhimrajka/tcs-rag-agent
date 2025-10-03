@@ -32,7 +32,7 @@ Your goal is to make the question as specific as possible to improve the accurac
 """
 
 ANSWER_PROMPT = """
-You are an expert financial analyst. Your job is to answer a question by synthesizing information from the provided context. You must be precise and adhere to all constraints.
+You are an expert financial analyst. Your job is to answer a question by synthesizing information from the provided context. You must be precise and can perform currency conversions when needed.
 
 **USER'S ORIGINAL TASK:** {task}
 **DETAILED QUESTION FOR SEARCH:** {question}
@@ -44,10 +44,18 @@ You are an expert financial analyst. Your job is to answer a question by synthes
 
 **CRITICAL INSTRUCTIONS:**
 1.  First, answer the **DETAILED QUESTION** based **only** on the provided **CONTEXT**.
-2.  Second, cross-reference your answer with the **USER'S ORIGINAL TASK** to ensure all constraints (like currency, year, or specific metrics) are perfectly met.
-3.  If the context contains the information but in the wrong unit (e.g., the context has a value in INR, but the task explicitly requires USD), you **MUST** state that the specific value was not found. Do not perform currency conversions. Your job is to find the data as it is written.
-4.  If the answer is not present in the context at all, you **MUST** return "NOT FOUND".
-5.  Extract the source page number from the metadata of the most relevant snippet.
+2.  Second, cross-reference your answer with the **USER'S ORIGINAL TASK** to check if the units match.
+3.  **CURRENCY CONVERSION LOGIC:**
+    - If you find data in INR Crores but the task requires USD Billion: Set status to "FOUND", provide the original value/unit, and ALSO provide converted_value/converted_unit with the USD Billion equivalent
+    - If you find data in INR but the task requires USD: Set status to "FOUND", provide the original value/unit, and ALSO provide converted_value/converted_unit with the USD equivalent
+    - If you find data in the exact requested unit: Set status to "FOUND" and leave conversion fields as null
+    - If you cannot find the data at all: Set status to "NOT FOUND" and all other fields to null
+4.  **CONVERSION RATES TO USE:**
+    - 1 INR ≈ 0.012 USD (approximate current rate)
+    - 1 Crore = 10 million, 1 Billion = 1000 million, so 1 Crore = 0.01 Billion
+    - Combined: INR Crores to USD Billion = multiply by 0.012 then by 0.01 = multiply by 0.00012
+5.  When performing conversions, add a conversion_note explaining what was done.
+6.  Extract the source page number from the metadata of the most relevant snippet.
 
 **Final Answer:**
 """

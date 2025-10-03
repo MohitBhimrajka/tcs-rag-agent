@@ -106,7 +106,26 @@ async def extract_data_with_agent(
 
                 # Map the parsed data back to our final schema
                 if isinstance(parsed_result, ParsedRevenue):
-                    final_results.consolidated_revenue = ConsolidatedRevenue(**parsed_result.dict())
+                    if hasattr(parsed_result, 'status') and parsed_result.status == "NOT FOUND":
+                        # Skip storing this result since data wasn't found
+                        print(f"--- RUN {run_id}: Task '{task}' returned NOT FOUND ---")
+                    else:
+                        # Use converted values if available, otherwise use original values
+                        result_data = parsed_result.dict()
+                        if parsed_result.converted_value is not None:
+                            # Use converted values for the final result
+                            result_data['value'] = parsed_result.converted_value
+                            result_data['unit'] = parsed_result.converted_unit
+                            print(f"--- RUN {run_id}: Used converted value: {parsed_result.converted_value} {parsed_result.converted_unit} ---")
+                            print(f"--- RUN {run_id}: Conversion note: {parsed_result.conversion_note} ---")
+                        
+                        # Remove conversion-specific fields before creating ConsolidatedRevenue
+                        result_data.pop('status', None)
+                        result_data.pop('converted_value', None)
+                        result_data.pop('converted_unit', None)
+                        result_data.pop('conversion_note', None)
+                        
+                        final_results.consolidated_revenue = ConsolidatedRevenue(**result_data)
                 elif isinstance(parsed_result, ParsedNetIncome):
                     final_results.consolidated_net_income = ConsolidatedNetIncome(**parsed_result.dict())
                 elif isinstance(parsed_result, ParsedEPS):

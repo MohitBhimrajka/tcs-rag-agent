@@ -1,14 +1,18 @@
 # app/agent/parsers.py
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
 
 # These models are specifically for the LLM to use as a structured output format.
 # They are simpler than the final schemas, focusing only on what needs to be parsed from the raw text.
 
 class ParsedRevenue(BaseModel):
-    value: float = Field(description="The numerical value of the revenue.")
-    unit: str = Field(description="The currency and scale, e.g., 'USD Billion' or 'INR Crores'.")
-    source_page: int = Field(description="The page number where the data was found.")
+    value: float | None = Field(description="The numerical value of the revenue. Use null if NOT FOUND.")
+    unit: str | None = Field(description="The currency and scale found in the document, e.g., 'USD Billion' or 'INR Crores'. Use null if NOT FOUND.")
+    source_page: int | None = Field(description="The page number where the data was found. Use null if NOT FOUND.")
+    status: str = Field(description="Either 'FOUND' or 'NOT FOUND' based on whether data was found.", default="FOUND")
+    converted_value: float | None = Field(description="The converted value if currency conversion was performed. Use null if no conversion.", default=None)
+    converted_unit: str | None = Field(description="The converted unit if currency conversion was performed. Use null if no conversion.", default=None)
+    conversion_note: str | None = Field(description="Note about conversion performed, e.g., 'Converted from INR Crores using rate 0.012'. Use null if no conversion.", default=None)
 
 class ParsedNetIncome(BaseModel):
     value: float = Field(description="The numerical value of the net income or profit after tax.")
