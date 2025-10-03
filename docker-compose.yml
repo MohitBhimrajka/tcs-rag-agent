@@ -20,12 +20,17 @@ services:
       context: .
       dockerfile: Dockerfile
     command: gunicorn -c gunicorn/dev.py app.main:app
+    env_file:
+      - .env
     volumes:
       - ./app:/app/app
+      - ./documents:/app/documents
+      - ./app/data:/app/app/data
     ports:
       - "8000:8000"
     environment:
       - FRONTEND_URL=http://localhost:3000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       # Other environment variables commented out for basic setup
       # - PG_USER=${PG_USER}
       # - PG_PASSWORD=${PG_PASSWORD}
@@ -64,23 +69,16 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      # --- MODIFICATION START ---
       args:
-        # For Docker deployment, frontend container talks to backend container  
-        # The browser still accesses backend via localhost:8000 due to port mapping
         - NEXT_PUBLIC_API_URL=http://localhost:8000
-      # --- MODIFICATION END ---
-    # Removed command override - using default from Dockerfile (npm start)
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=${NODE_ENV}
-      # Override the API URL for the runtime environment
-      # This tells the client-side code to use localhost:8000 (which is correct for browser)
+      - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
       - backend
     restart: unless-stopped
 
 volumes:
-  postgres_data: 
+  postgres_data:

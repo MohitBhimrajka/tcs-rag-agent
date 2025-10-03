@@ -1,8 +1,9 @@
+// frontend/src/app/layout.tsx
 import './globals.css'
 
 export const metadata = {
-  title: 'Template Backend Health Check',
-  description: 'Simple page to check if the backend is working',
+  title: 'Financial Extraction Agent',
+  description: 'Extract structured data from annual reports using an AI agent.',
 }
 
 export default function RootLayout({
@@ -12,7 +13,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <main>{children}</main>
+      </body>
     </html>
   )
 }

@@ -2,4 +2,27 @@
 fastapi
 uvicorn
 gunicorn
-gitingest
+python-multipart  # Required for file uploads
+
+# --- RAG AGENT & PARSING LIBRARIES ---
+langchain
+langgraph
+langchain-google-genai
+langchain_core
+langchain_community
+langchain-huggingface
+pydantic
+python-dotenv
+
+# PDF & Table Parsers
+pymupdf
+camelot-py[cv]
+pdfplumber
+
+# Embedding & Vector Store
+sentence-transformers
+faiss-cpu
+
+# Database & Migrations
+sqlalchemy
+alembic

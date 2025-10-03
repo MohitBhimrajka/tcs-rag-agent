@@ -1,323 +1,489 @@
-# AI-Powered Command Center Template
+# TCS Annual Report RAG Agent
 
-A production-ready template for building AI-powered business process automation systems. This template follows the **Supervity Command Center Playbook** - our methodology for creating intelligent systems that don't just help users perform tasks, but give users and AI the oversight and control to manage entire business processes.
+An intelligent, multi-modal document extraction system that uses advanced RAG (Retrieval-Augmented Generation) techniques and autonomous agents to extract structured financial data from financial reports. Built with LangGraph, FastAPI, React, and modern AI technologies.
 
-**📖 [Read the Complete Playbook →](docs/command_center_guide.md)**
+## 🧠 System Architecture
 
-Perfect for building Command Centers across any business domain: Procurement, HR, ITSM, Customer Service, Accounts Payable, and more.
+### High-Level Overview
 
-## 🏗️ Tech Stack
+The system implements a sophisticated **LangGraph-based autonomous agent** with **asynchronous processing** and **real-time tracking** that follows a **Plan-Execute-Validate** workflow:
 
-**Backend (AI-Ready):**
-- FastAPI (Python web framework) - Perfect for AI model integration
-- Gunicorn (WSGI server for production)
-- Uvicorn (ASGI server)
-- Background task support (for AI processing)
-- AI Model Abstraction Layer (swap between OpenAI, Gemini, Anthropic)
+#### Agent State Flow
+```
+Job Submission → Background Processing → Task Queue → Planner → Tool Selection → Tool Execution → Validation → Database Storage → Real-time Status Updates
+```
 
-**Frontend (Command Center UI):**
-- Next.js 15 with React 19
-- TypeScript
-- Tailwind CSS
-- Radix UI components
-- Built for Dashboard + Workbench + AI Chat interfaces
+#### Core Components
 
-**Infrastructure:**
-- Docker & Docker Compose
-- Multi-stage Docker builds for optimized production images
-- Ready for PostgreSQL, Redis, and other AI-supporting services
+1. **🎯 Planner Agent (`planner_node`)**
+   - Uses Google Gemini to select appropriate tools
+   - Processes structured task queue
+   - Makes intelligent decisions about which RAG tool to use
+   - Generates precise queries for maximum extraction accuracy
 
-## 🧠 Command Center Architecture
+2. **🛠️ Tool Executor (`tool_node`)**
+   - Executes selected RAG tools asynchronously
+   - Handles both text and table search operations
+   - Manages tool responses and error handling
 
-This template implements the **Three Pillars of a Command Center**:
+3. **✅ Validator Agent (`validation_node`)**
+   - Uses structured output parsing with Pydantic models
+   - Validates and transforms raw tool outputs
+   - Maps parsed data to final schema structures
+   - Handles parsing errors gracefully
 
-1. **🎯 The Dashboard ("The Eyes")** - Strategic overview with role-based insights
-2. **🛠️ The Workbench ("The Hands")** - Tactical workspace for handling AI exceptions  
-3. **⚡ The AI Engine ("The Brain")** - Configurable policies and autonomous decision-making
+4. **🗄️ Database Layer**
+   - SQLite database with Alembic migrations
+   - Tracks extraction runs, audit trails, and results
+   - Real-time current task updates
+   - Structured JSON storage for extracted data
 
-**Core Operational Loop:** Ingest → Link/Enrich → Analyze/Decide → Act → Learn
+5. **🔄 File Management System**
+   - Dynamic PDF upload with validation
+   - Duplicate detection and error handling
+   - Multi-document support with selection interface
+
+### 🔍 Multi-Modal RAG System
+
+#### Dual Vector Store Architecture
+- **Text Vector Store**: Processes narrative content, management discussions, qualitative insights
+- **Table Vector Store**: Extracts structured financial data, quantitative metrics, tabular information
+
+#### RAG Tools
+1. **TextSearchTool**
+   - Optimized for qualitative information
+   - Management risks, business outlook, utilization rates
+   - Uses prose-based document chunks
+
+2. **TableSearchTool**
+   - Specialized for quantitative data
+   - Financial figures, revenue breakdowns, segment contributions
+   - Uses structured table representations in markdown format
+
+## 🏗️ Technical Stack
+
+### Backend Technologies
+- **FastAPI**: High-performance Python web framework with async support
+- **LangGraph**: Advanced agent orchestration and workflow management
+- **LangChain**: RAG pipeline and document processing
+- **Google Gemini**: Large language model for planning and validation
+- **HuggingFace Transformers**: Embedding models (`all-MiniLM-L6-v2`)
+- **FAISS**: Vector similarity search and storage
+- **Pydantic**: Data validation and structured parsing
+- **SQLAlchemy**: Database ORM with async support
+- **Alembic**: Database migration management
+- **Python Multipart**: File upload handling
+
+### Document Processing
+- **PyMuPDF**: PDF text extraction
+- **Camelot**: Advanced table detection and extraction
+- **Recursive Character Text Splitter**: Intelligent document chunking
+
+### Infrastructure
+- **Docker & Docker Compose**: Containerized deployment
+- **Gunicorn**: Production WSGI server
+- **Multi-stage Docker builds**: Optimized container images
+
+### Frontend (Next.js)
+- **Next.js 15**: React-based frontend framework
+- **TypeScript**: Type-safe development
+- **React Hooks**: State management with useState, useEffect, useCallback
+- **Real-time Polling**: Live progress updates and status monitoring
+- **Modern CSS**: Custom styling with CSS variables
+- **File Management UI**: Drag-and-drop upload and document selection
 
 ## 📁 Project Structure
 
 ```
-├── app/                    # FastAPI backend application
-│   ├── main.py            # Main FastAPI app with health checks & CORS
-│   └── modules/           # Your Command Center modules go here
-│       └── ai_service/    # AI model abstraction layer
-├── docs/                  # Documentation & design decisions
-│   └── command_center_guide.md  # The complete playbook
-├── frontend/              # Next.js Command Center UI
-│   ├── src/               # Dashboard, Workbench, AI Chat components
-│   ├── Dockerfile         # Frontend container config
-│   └── package.json       # Dependencies & scripts
-├── gunicorn/              # Gunicorn server configurations
-│   ├── dev.py             # Development settings (hot reload)
-│   └── prod.py            # Production settings (optimized)
-├── packages/              # Python dependencies
-│   └── requirements.txt   # Backend packages (add AI SDKs here)
-├── docker-compose.yml     # Multi-container orchestration
-├── Dockerfile             # Backend container config (multi-stage)
-├── Makefile              # Development workflow automation
-└── README.md             # This file
+tcs-rag-agent/
+├── app/                          # Main application directory
+│   ├── agent/                    # Autonomous agent system
+│   │   ├── graph.py             # LangGraph agent workflow definition
+│   │   ├── tools.py             # RAG tools (Text/Table search)
+│   │   └── parsers.py           # Structured output parsers
+│   ├── api/                     # FastAPI application
+│   │   └── v1/
+│   │       └── endpoints.py     # Enhanced API endpoints with async processing
+│   ├── core/                    # Core business logic
+│   │   └── document_processor.py # Multi-modal document processing
+│   ├── data/                    # Data storage
+│   │   ├── audit.db             # SQLite database for tracking
+│   │   └── vector_stores/       # FAISS vector databases
+│   │       ├── *_text/          # Text chunks for each document
+│   │       └── *_tables/        # Table structures for each document
+│   ├── db/                      # Database layer
+│   │   ├── database.py          # Database connection and sessions
+│   │   ├── models.py            # SQLAlchemy models with enhanced schema
+│   │   └── crud.py              # Database operations
+│   ├── schemas/                 # Pydantic data models
+│   │   └── extraction.py        # Structured output schemas
+│   └── main.py                  # FastAPI application entry point
+├── alembic/                     # Database migrations
+│   ├── versions/                # Migration files
+│   └── env.py                   # Alembic configuration
+├── alembic.ini                  # Alembic settings
+├── documents/                   # Input documents directory
+│   └── TCS_Annual_report.pdf    # Source document (and uploaded files)
+├── frontend/                    # Enhanced Next.js frontend
+│   ├── src/
+│   │   └── app/
+│   │       ├── page.tsx         # Enhanced UI with file management
+│   │       ├── layout.tsx       # Application layout
+│   │       └── globals.css      # Modern styling
+│   ├── package.json            # Frontend dependencies
+│   └── Dockerfile              # Frontend container
+├── tests/                       # Test scripts and utilities
+│   └── comprehensive_system_demo.sh  # Full system demonstration
+├── packages/
+│   └── requirements.txt        # Python dependencies (with new packages)
+├── docker-compose.yml          # Multi-container orchestration
+├── Dockerfile                  # Backend container
+└── Makefile                   # Development commands
 ```
 
-## 🎯 Getting Started with Command Centers
+### 📊 Data Extraction Pipeline
 
-**New to AI-Powered Command Centers?** Start here:
+#### Document Processing Workflow
+```
+File Upload/Selection → Background Job Creation → PDF Processing → Vector Store Generation → Task Queue Processing → Real-time Status Updates → Results Storage
+```
 
-1. **📖 Read the Playbook** - [Complete Command Center Guide](docs/command_center_guide.md)
-2. **🧠 Choose Your Domain** - Procurement? HR? ITSM? Customer Service?
-3. **🔍 Identify the Process** - Use the "5 Whys" technique from the playbook
-4. **⚡ Define Your Loop** - Map your process to: Ingest → Link → Analyze → Act → Learn
-5. **🏗️ Build Your Pillars** - Dashboard, Workbench, and AI Engine
+#### Asynchronous Extraction Flow
+```
+1. Job Submission (immediate response with run_id)
+2. Background Agent Execution
+3. Real-time Task Progress Updates
+4. Database Storage of Results
+5. Complete Audit Trail Generation
+```
 
-**Example Command Centers You Can Build:**
-- **Procurement Command Center** - Automate Purchase Request approvals and vendor management
-- **HR Onboarding Command Center** - Orchestrate new hire workflows across departments  
-- **ITSM Command Center** - Intelligent ticket routing and resolution automation
-- **AP Command Center** - 3-way matching and invoice processing automation
+#### Supported Extraction Tasks
+- **Consolidated Revenue** (USD Billion)
+- **Consolidated Net Income** (Profit After Tax)
+- **Diluted Earnings Per Share** (EPS in INR)
+- **Top 3 Segment Contributions** (Percentage breakdown)
+- **Employee Utilization Rate** (Excluding trainees)
+- **Key Management Risks** (Top 2-3 critical risks)
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 - Docker & Docker Compose
-- Make (optional, for convenient commands)
+- Google Gemini API Key
+- Python 3.9+ (for local development)
 
-### Local Development
+### Environment Setup
 
-1. **Clone the repository:**
-   ```bash
-   git clone <your-repo-url>
-   cd <project-directory>
-   ```
-
-2. **Set up environment files:**
-   
-   **Root `.env` file:**
-   ```bash
-   # Create .env in project root
-   cat > .env << EOF
-   FRONTEND_URL=http://localhost:3000
-   NODE_ENV=development
-   EOF
-   ```
-   
-   **Frontend `.env.local` file:**
-   ```bash
-   # Create .env.local in frontend directory
-   cat > frontend/.env.local << EOF
-   NEXT_PUBLIC_API_URL=http://localhost:8000
-   EOF
-   ```
-
-3. **Start services:**
-   ```bash
-   make up
-   ```
-   
-   Or without Make:
-   ```bash
-   docker-compose up --build -d
-   ```
-
-4. **Access your application:**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - Health check: http://localhost:8000/api/health
-
-5. **View logs:**
-   ```bash
-   make logs-fe    # Frontend logs
-   make logs-be    # Backend logs
-   ```
-
-6. **Stop services:**
-   ```bash
-   make down
-   ```
-
-## 🛠️ Available Commands
-
-The Makefile provides convenient shortcuts for common development tasks:
-
+**Create environment file:**
 ```bash
-make help           # Show all available commands
-make up             # Start all services
-make down           # Stop all services
-make logs-be        # View backend logs
-make logs-fe        # View frontend logs
+# Create .env in project root
+cat > .env << EOF
+GEMINI_API_KEY=your_gemini_api_key_here
+FRONTEND_URL=http://localhost:3000
+NODE_ENV=development
+EOF
 ```
 
-### Database Migration Commands (when database is configured)
+**Create frontend environment:**
 ```bash
-make migrate-create MSG='description'   # Create new migration
-make migrate-up                         # Apply pending migrations
-make migrate-down                       # Rollback one migration
-make migrate-history                    # Show migration history
-make reset-db                           # Clean & reinitialize database
+# Create frontend/.env.local
+cat > frontend/.env.local << EOF
+NEXT_PUBLIC_API_URL=http://localhost:8000
+EOF
 ```
 
-## 🌐 Environment Configuration
+### Quick Launch
 
-### Development
-The template works out-of-the-box for local development with sensible defaults.
-
-### Production
-Configure environment variables in `docker-compose.yml` or use a `.env` file:
-
+**Start all services:**
 ```bash
-# Example production environment variables
-NODE_ENV=production
-FRONTEND_URL=https://your-domain.com
-GUNICORN_LOG_LEVEL=info
-WEB_CONCURRENCY=2
-WORKER_CONNECTIONS=1000
-GUNICORN_TIMEOUT=120
-
-# Database (uncomment in docker-compose.yml when ready)
-# PG_USER=your_db_user
-# PG_PASSWORD=your_db_password
-# PG_HOST=your_db_host
-# PG_PORT=5432
-# PG_DB_NAME=your_db_name
-
-# Add other service-specific variables as needed
-```
-
-## 🚢 Deployment
-
-### Local Production Testing
-```bash
-# Use production gunicorn config
 docker-compose up --build -d
-# Backend will use gunicorn/dev.py by default
-# For production testing, modify docker-compose.yml to use gunicorn/prod.py
 ```
 
-### Production Deployment
-1. Set environment variables for your production environment
-2. Use the production Gunicorn configuration
-3. Configure reverse proxy (nginx/traefik) if needed
-4. Set up SSL certificates
-5. Configure monitoring and logging
+**Access the application:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- Health Check: http://localhost:8000/api/health
+- API Documentation: http://localhost:8000/docs
 
-## 🔧 Building Your Command Center
-
-### Step 1: Set Up AI Integration
-
-**Add AI SDKs to your backend:**
+**View logs:**
 ```bash
-# Add to packages/requirements.txt
-echo "new-package==1.0.0" >> packages/requirements.txt
-# Rebuild containers
-make down && make up
+# Backend logs
+docker-compose logs -f backend
+
+# Frontend logs  
+docker-compose logs -f frontend
 ```
 
-**Create your AI Service abstraction:**
+## 📡 Enhanced API Endpoints
+
+### File Management
+
+#### `GET /api/v1/documents`
+**List available PDF documents for processing**
+
+**Response:**
+```json
+{
+  "filenames": [
+    "TCS_Annual_report.pdf",
+    "company_annual_report_2023.pdf"
+  ]
+}
+```
+
+#### `POST /api/v1/documents/upload`
+**Upload new PDF documents with validation**
+
+**Request:** Multipart form data with PDF file
+**Response:**
+```json
+{
+  "filename": "uploaded_document.pdf",
+  "message": "File uploaded successfully",
+  "size_mb": 2.3
+}
+```
+
+### Asynchronous Extraction System
+
+#### `POST /api/v1/extract`
+**Start asynchronous extraction job (Enhanced)**
+
+**Request Body:**
+```json
+{
+  "filename": "TCS_Annual_report.pdf"
+}
+```
+
+**Response (Immediate):**
+```json
+{
+  "run_id": 1,
+  "filename": "TCS_Annual_report.pdf",
+  "status": "in_progress",
+  "message": "Extraction job has been started in the background."
+}
+```
+
+#### `GET /api/v1/extractions/{run_id}/status`
+**Get real-time job status with current task details**
+
+**Response:**
+```json
+{
+  "run_id": 1,
+  "status": "in_progress",
+  "current_task": "Processing: Consolidated Revenue (USD Billion)",
+  "start_time": "2025-10-03T08:40:58.614069",
+  "end_time": null
+}
+```
+
+**Status Values:**
+- `in_progress` - Agent actively processing tasks
+- `completed` - All tasks finished successfully  
+- `failed` - Processing encountered errors
+
+#### `GET /api/v1/extractions/{run_id}/results`
+**Retrieve complete results and audit trail**
+
+**Response:**
+```json
+{
+  "run_id": 1,
+  "status": "completed",
+  "filename": "TCS_Annual_report.pdf",
+  "results": {
+    "consolidated_revenue": {
+      "value": 27.9,
+      "unit": "USD Billion", 
+      "source_page": 142
+    },
+    "consolidated_net_income": {
+      "value": 4.84,
+      "unit": "USD Billion",
+      "source_page": 142
+    },
+    "diluted_eps": {
+      "value": 131.0,
+      "unit": "INR",
+      "source_page": 143
+    },
+    "top_3_segment_contributions": [
+      {
+        "segment": "BFSI",
+        "percentage": 30.2
+      },
+      {
+        "segment": "Retail and CPG",
+        "percentage": 15.8
+      }
+    ],
+    "employee_utilization": {
+      "value": 86.1,
+      "unit": "percentage",
+      "source_page": 28
+    },
+    "key_management_risks": [
+      {
+        "risk": "Global economic uncertainty",
+        "description": "Impact on client spending patterns"
+      }
+    ]
+  },
+  "trace_logs": [
+    {
+      "timestamp": "2025-10-03T08:41:01.808008",
+      "node_name": "Planner",
+      "log_message": "Task: 'Consolidated Revenue'. Decision: Use tool 'TableSearchTool'."
+    },
+    {
+      "timestamp": "2025-10-03T08:41:04.879206", 
+      "node_name": "ToolExecutor",
+      "log_message": "Executed tool 'TableSearchTool'. Raw Output: 27.9 USD Billion"
+    }
+  ]
+}
+```
+
+### Health & Monitoring
+
+#### `GET /api/health`
+**System health check**
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+## 🔧 Data Schemas
+
+### Core Models
+
 ```python
-# app/modules/ai_service/main.py
-async def get_recommendation(data: dict) -> dict:
-    """Your AI logic here - swap between models easily"""
-    pass
+class FinancialReportData(BaseModel):
+    """Complete financial report extraction results"""
+    consolidated_revenue: Optional[ConsolidatedRevenue] = None
+    consolidated_net_income: Optional[ConsolidatedNetIncome] = None  
+    diluted_eps: Optional[DilutedEPS] = None
+    top_3_segment_contributions: List[SegmentContribution] = []
+    employee_utilization: Optional[EmployeeUtilization] = None
+    key_management_risks: List[KeyManagementRisk] = []
+
+class ConsolidatedRevenue(BaseMetric):
+    """Revenue with metadata"""
+    value: Optional[float] = None
+    unit: Optional[str] = None  # e.g., "USD Billion"
+    source_page: Optional[int] = None
+    reasoning: Optional[str] = None
 ```
 
-### Step 2: Build the Three Pillars
+### Parser Models
+Specialized models for LLM structured output parsing:
+- `ParsedRevenue`, `ParsedNetIncome`, `ParsedEPS`
+- `ParsedSegmentContribution`, `ParsedUtilization` 
+- `ParsedKeyRisks`
 
-**Dashboard (`frontend/src/app/dashboard`):**
-- Role-based views for managers vs operators
-- Key metrics and performance indicators
-- Strategic insights, not just data dumps
+## 🧪 Testing the Enhanced System
 
-**Workbench (`frontend/src/app/workbench`):**
-- Single-record focused workspace
-- All context for human decisions
-- **Critical:** Feedback mechanisms to teach the AI
+### 🚀 Quick System Demo
 
-**AI Policies (`frontend/src/app/policies`):**
-- Rule builder interface for admins
-- Visual policy management
-- Real-time rule testing and validation
+Run the comprehensive system demonstration:
 
-### Step 3: Implement the Learning Loop
-
-**Audit Everything:**
-```python
-# Store raw inputs, AI outputs, and final outcomes
-# Create feedback tables linked to specific records
+```bash
+# Execute the full system demo
+./tests/comprehensive_system_demo.sh
 ```
 
-**Background Learning Jobs:**
-```python
-# Scan audit logs for patterns
-# Generate automation suggestions
-# Process explicit user feedback
+This demo showcases:
+- **File management** capabilities
+- **Real-time progress tracking** 
+- **Asynchronous processing** workflow
+- **Complete audit trail** generation
+- **Enhanced frontend** features
+
+### 🔧 Manual API Testing
+
+#### 1. Test File Management
+```bash
+# List available documents
+curl -s http://localhost:8000/api/v1/documents | jq .
+
+# Upload a new document (multipart form)
+curl -X POST "http://localhost:8000/api/v1/documents/upload" \
+  -F "file=@/path/to/your/document.pdf"
 ```
 
-## 🔍 Command Center Features
+#### 2. Test Asynchronous Extraction
+```bash
+# Start extraction job (immediate response)
+RESPONSE=$(curl -s -X POST "http://localhost:8000/api/v1/extract" \
+  -H "Content-Type: application/json" \
+  -d '{"filename": "TCS_Annual_report.pdf"}')
 
-**AI-First Architecture:**
-- **AI Model Abstraction**: Swap between OpenAI, Gemini, Anthropic without code changes
-- **Background AI Processing**: Non-blocking AI calls keep the UI responsive
-- **Learning Loop Integration**: Built-in feedback mechanisms and audit trails
+echo $RESPONSE | jq .
+RUN_ID=$(echo $RESPONSE | jq -r .run_id)
+```
 
-**Production-Ready Foundation:**
-- **Hot Reload**: Backend code changes trigger automatic reloads in development
-- **Health Checks**: Docker health checks ensure services are running correctly
-- **CORS Configuration**: Pre-configured for frontend-backend communication
-- **Multi-stage Builds**: Optimized Docker images for production
-- **Flexible Configuration**: Environment-based settings for different deployment scenarios
+#### 3. Monitor Real-time Progress
+```bash
+# Check status with current task details
+curl -s "http://localhost:8000/api/v1/extractions/$RUN_ID/status" | jq .
 
-**Command Center Specific:**
-- **Three Pillars Architecture**: Dashboard, Workbench, and AI Policies structure
-- **Role-Based Access**: Different views for managers, operators, and admins
-- **Audit Trail**: Every decision tracked for AI learning and compliance
-- **Real-Time Updates**: WebSocket support for live status updates
+# Expected responses show specific tasks:
+# "Processing: Consolidated Revenue (USD Billion)"
+# "Processing: Employee Utilization Rate (excluding trainees)" 
+# etc.
+```
 
-## 📝 Development Notes
+#### 4. Retrieve Complete Results
+```bash
+# Get final results and audit trail (after completion)
+curl -s "http://localhost:8000/api/v1/extractions/$RUN_ID/results" | jq .
+```
 
-- The backend runs on port 8000, frontend on port 3000
-- CORS is configured to allow frontend communication
-- Database configuration is commented out but ready to uncomment when needed
-- Migration tools are set up for future database schema management
-- Both services restart automatically unless stopped
+### 🌐 Frontend Testing
 
-## 🆘 Troubleshooting
+1. **Open the enhanced UI**: http://localhost:3000
+2. **Test file selection**: Choose from available documents
+3. **Test file upload**: Drag and drop new PDF files
+4. **Monitor real-time progress**: Watch live task updates
+5. **Review complete results**: Structured data + audit trail
 
-**Services won't start:**
-- **First, check environment files exist:**
-  - Root `.env` file with `FRONTEND_URL` and `NODE_ENV`
-  - Frontend `.env.local` file with `NEXT_PUBLIC_API_URL`
-- Ensure ports 3000 and 8000 are available
-- Check Docker daemon is running
-- View logs: `make logs-be` or `make logs-fe`
+## 📚 References
 
-**CORS errors:**
-- Verify `FRONTEND_URL` in root `.env` matches your frontend URL
-- Ensure `NEXT_PUBLIC_API_URL` in `frontend/.env.local` points to your backend
-- Check browser network tab for actual request URLs
-
-**Frontend can't connect to backend:**
-- Verify `NEXT_PUBLIC_API_URL=http://localhost:8000` in `frontend/.env.local`
-- Check that backend is running on port 8000
-- Test backend directly: `curl http://localhost:8000/api/health`
-
-**Database connection issues:**
-- Uncomment and configure database settings in `docker-compose.yml`
-- Ensure database service is running and accessible
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+- [LangChain RAG Guide](https://python.langchain.com/docs/use_cases/question_answering/)
+- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+- [Google Gemini API](https://ai.google.dev/docs)
+- [FAISS Vector Database](https://faiss.ai/)
 
 ---
 
-## 🚀 Ready to Build Intelligence?
+## 🎉 System Overview
 
-This template isn't just about building software—it's about creating **intelligent systems that become partners to your business**. 
+This **Enhanced TCS RAG Agent** represents a production-ready, enterprise-grade solution for automated financial document analysis. The system has evolved from a basic proof-of-concept to a sophisticated platform that combines:
 
-**Next Steps:**
-1. 📖 **Study the Playbook**: [Complete Command Center Guide](docs/command_center_guide.md)
-2. 🎯 **Identify Your Process**: What business process needs AI-powered automation?
-3. 🏗️ **Start Building**: Use this template as your launchpad
-4. 🧠 **Think AI-First**: Every feature should enable AI autonomy or human oversight
-5. 📚 **Document Everything**: Record your design decisions in `/docs`
+### 🧠 **Intelligent Agent Architecture**
+- **LangGraph-based autonomous agents** with sophisticated planning and validation
+- **Multi-modal RAG processing** for both text and structured data extraction
+- **Real-time progress tracking** with granular task visibility
 
-**Remember the Supervity Philosophy**: We don't just solve today's problems—we build systems that learn and become indispensable tomorrow.
+### ⚡ **Modern Technical Stack**
+- **Asynchronous FastAPI backend** with background job processing
+- **React-based frontend** with real-time updates and file management
+- **Database-backed persistence** with complete audit trails
+- **Containerized deployment** ready for production scaling
 
-Happy building! 🎉 ⚡ 🧠
+### 🎯 **Enterprise Features**
+- **Multi-document support** with upload and validation
+- **Concurrent user handling** with isolated job tracking
+- **Comprehensive error handling** and user feedback
+- **Production-ready monitoring** and health checks
+
+The system demonstrates how modern AI can transform traditional document processing workflows into intelligent, self-managing extraction pipelines that provide transparency, auditability, and scalability for enterprise financial analysis needs.
+
+**Ready for production deployment with multi-user support and enterprise-grade reliability!** 🚀

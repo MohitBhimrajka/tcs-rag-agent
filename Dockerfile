@@ -26,6 +26,10 @@ COPY --from=builder /opt/venv /opt/venv
 COPY app ./app/
 COPY gunicorn ./gunicorn/
 
+# Copy alembic configuration and migrations
+COPY alembic.ini ./
+COPY alembic ./alembic/
+
 # Copy config files if they exist
 COPY start_gunicorn.sh ./
 

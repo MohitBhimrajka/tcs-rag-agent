@@ -3,30 +3,34 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 
-app = FastAPI()
+# Import the new router
+from app.api.v1 import endpoints
 
-# Get the frontend URL from environment variables for CORS
-# This allows your Next.js app (running on localhost:3000) to talk to the backend
+app = FastAPI(
+    title="TCS Annual Report Extraction Agent API",
+    description="An API for an autonomous agent that extracts structured data from TCS annual reports.",
+    version="1.0.0"
+)
+
+# CORS (Cross-Origin Resource Sharing) middleware setup
 frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_url],
+    allow_origins=[frontend_url, "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include the API router from our endpoints file
+app.include_router(endpoints.router)
 
 @app.get("/api/health")
 def read_health():
     """Health check endpoint required by the Dockerfile."""
     return {"status": "ok"}
 
-@app.get("/api/test")
-def read_test_data():
-    """A simple test endpoint for the frontend to fetch data from."""
-    return {"message": "Hello from the Template Command Center Backend!"}
-
 @app.get("/")
 def read_root():
-    return {"message": "Welcome to the Template CC API"}
+    """A root endpoint to confirm the API is running."""
+    return {"message": "Welcome to the TCS Extraction Agent API"}
