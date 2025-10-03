@@ -16,11 +16,11 @@ help:
 	@echo "  migrate-history: Show migration history."
 
 up:
-	@echo "🚀 Starting all Supervity services..."
+	@echo "🚀 Starting all TCS RAG Agent services..."
 	docker-compose up --build -d
 
 down:
-	@echo "🛑 Stopping all Supervity services..."
+	@echo "🛑 Stopping all TCS RAG Agent services..."
 	docker-compose down
 
 logs-be:
