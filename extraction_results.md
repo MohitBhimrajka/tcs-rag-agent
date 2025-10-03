@@ -24,10 +24,10 @@ GET http://localhost:8000/api/v1/documents
 POST http://localhost:8000/api/v1/extract with filename: TCS_Annual_report.pdf
 Initial Response:
 {
-  "run_id": 7,
+  "run_id": 11,
   "status": "processing_started"
 }
-✅ Job started successfully with Run ID: 7
+✅ Job started successfully with Run ID: 11
 
 3️⃣  Polling for Job Completion (Max wait: 3 minutes)
 ---------------------------------------------
@@ -39,10 +39,10 @@ Polling check #1: Status is 'completed', Current Task: 'Completed'
 
 | Metric | Value | Unit | Source Page |
 |---|---|---|---|
-| Consolidated Revenue | 255324 | INR Crores | 89 |
-| Consolidated Net Income | 48553 | ₹ crore | 229 |
-| Diluted EPS | 134.19 | INR | 89 |
-| Employee Utilization | 83 | % | 94 |
+| Consolidated Revenue | 30.63888 | USD Billion | 89 |
+| Consolidated Net Income | 48797 | INR Crore | 229 |
+| Diluted EPS | 132.83 | INR | 300 |
+| Employee Utilization | 85.7 | % | 94 |
 
 ### Top 3 Segment Contributions
 
@@ -59,31 +59,31 @@ _No key risks were extracted._
 ## 3. Agent Reasoning Trace
 
 #### Node: `RAGChain`
-**Timestamp:** 2025-10-03T09:24:51.371387
+**Timestamp:** 2025-10-03T09:39:48.785329
 ```
 Task: 'Consolidated Revenue (USD Billion)'.
 Success.
-Result: {'value': 255324.0, 'unit': 'INR Crores', 'source_page': 89}
+Result: {'value': 255324.0, 'unit': 'INR Crores', 'source_page': 89, 'status': 'FOUND', 'converted_value': 30.63888, 'converted_unit': 'USD Billion', 'conversion_note': 'Converted from INR Crores using rate 0.00012.'}
 ```
 
 #### Node: `RAGChain`
-**Timestamp:** 2025-10-03T09:25:06.989651
+**Timestamp:** 2025-10-03T09:40:01.008101
 ```
 Task: 'Consolidated Net Income (Profit After Tax)'.
 Success.
-Result: {'value': 48553.0, 'unit': '₹ crore', 'source_page': 229}
+Result: {'value': 48797.0, 'unit': 'INR Crore', 'source_page': 229}
 ```
 
 #### Node: `RAGChain`
-**Timestamp:** 2025-10-03T09:25:22.225118
+**Timestamp:** 2025-10-03T09:40:15.904374
 ```
 Task: 'Diluted Earnings Per Share (EPS in INR)'.
 Success.
-Result: {'value': 134.19, 'source_page': 89}
+Result: {'value': 132.83, 'source_page': 300}
 ```
 
 #### Node: `RAGChain`
-**Timestamp:** 2025-10-03T09:25:39.928115
+**Timestamp:** 2025-10-03T09:40:32.102209
 ```
 Task: 'Percentage contribution of the top 3 operating segments (e.g., BFSI, Retail)'.
 Success.
@@ -91,15 +91,15 @@ Result: {'top_segments': [{'segment_name': 'Banking, Financial Services and Insu
 ```
 
 #### Node: `RAGChain`
-**Timestamp:** 2025-10-03T09:25:51.491931
+**Timestamp:** 2025-10-03T09:40:43.463302
 ```
 Task: 'Employee Utilization Rate (excluding trainees)'.
 Success.
-Result: {'rate_percentage': 83.0, 'source_page': 94}
+Result: {'rate_percentage': 85.7, 'source_page': 94}
 ```
 
 #### Node: `RAGChain`
-**Timestamp:** 2025-10-03T09:26:01.815587
+**Timestamp:** 2025-10-03T09:40:55.471200
 ```
 Task: 'Top 2-3 most critical risks from the Management Discussion & Analysis'.
 Success.
