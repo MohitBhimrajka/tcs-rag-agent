@@ -305,3 +305,4 @@ logs/
 # Frontend
 frontend/node_modules
 frontend/.next 
+extraction_results.pdf

@@ -6,6 +6,19 @@ import os
 # Import the new router
 from app.api.v1 import endpoints
 
+# --- ADD THESE IMPORTS ---
+from app.db.database import engine
+from app.db import models
+# --- END IMPORTS ---
+
+
+# --- ADD THIS STARTUP EVENT ---
+# This command ensures that the database tables are created if they don't exist
+# every time the application starts up.
+models.Base.metadata.create_all(bind=engine)
+# --- END STARTUP EVENT ---
+
+
 app = FastAPI(
     title="TCS Annual Report Extraction Agent API",
     description="An API for an autonomous agent that extracts structured data from TCS annual reports.",

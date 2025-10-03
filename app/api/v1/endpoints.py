@@ -1,6 +1,8 @@
 # app/api/v1/endpoints.py
 import os
-from fastapi import APIRouter, HTTPException, Depends # <--- Add Depends
+import shutil # <--- ADD THIS
+from typing import List # <--- ADD THIS
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File # <--- UPDATE THIS
 from pydantic import BaseModel
 from collections import deque
 import uuid
@@ -8,8 +10,14 @@ from sqlalchemy.orm import Session # <--- Add Session
 
 from app.core.document_processor import DocumentProcessor
 from app.agent.tools import create_rag_tools
-from app.agent.graph import create_agent_graph, set_global_db_session
-from app.schemas.extraction import FinancialReportData
+# --- REMOVE THE GRAPH IMPORTS ---
+# from app.agent.graph import create_agent_graph, set_global_db_session
+
+# --- ADD THESE NEW IMPORTS ---
+from app.agent.rag_chain import create_rag_chain
+from app.agent.parsers import TASK_PARSER_MAP, ParsedRevenue, ParsedNetIncome, ParsedEPS, ParsedSegmentContribution, ParsedUtilization, ParsedKeyRisks
+
+from app.schemas.extraction import FinancialReportData, ConsolidatedRevenue, ConsolidatedNetIncome, DilutedEPS, SegmentContribution, EmployeeUtilization, KeyManagementRisk
 from app.db.database import get_db # <--- Add get_db
 from app.db import crud # <--- Add crud
 
@@ -39,16 +47,14 @@ Based on the task, what is the single most appropriate tool to use?
 And what is the best, most specific query to ask it to get a clear, unambiguous answer? For example, for "Consolidated Revenue", a good query would be "What is the Consolidated Revenue from operations for the most recent financial year?".
 """
 
-@router.post("/extract", response_model=FinancialReportData) # <--- Add response_model for clarity
+@router.post("/extract")
 async def extract_data_with_agent(
     request: ExtractionRequest,
-    db: Session = Depends(get_db) # <--- Use FastAPI's dependency injection to get a DB session
+    db: Session = Depends(get_db)
 ):
     """
-    The main endpoint to run the full, multi-modal agentic extraction process with auditing.
+    Runs the new, high-accuracy RAG chain for a pre-defined list of financial data points.
     """
-    # --- AUDIT START ---
-    # Create a record for this extraction run in the database
     run = crud.create_extraction_run(db=db, filename=request.filename)
     run_id = run.id
     print(f"--- STARTING EXTRACTION RUN ID: {run_id} FOR FILE: {request.filename} ---")
@@ -59,23 +65,16 @@ async def extract_data_with_agent(
         text_store_path = os.path.join("app/data/vector_stores", f"{store_name}_text")
         table_store_path = os.path.join("app/data/vector_stores", f"{store_name}_tables")
         
-        # 1. Process document if necessary
         if not os.path.exists(text_store_path) or not os.path.exists(table_store_path):
-            print("Processing document for agent...")
+            crud.update_extraction_run_task(db, run_id, "Processing Document...")
             processor = DocumentProcessor(pdf_path=pdf_path)
-            processor.process_and_store(
-                text_store_path=text_store_path,
-                table_store_path=table_store_path
-            )
+            processor.process_and_store(text_store_path, table_store_path)
 
-        # 2. Load retrievers and create tools
         text_retriever, table_retriever = DocumentProcessor.load_retrievers(
             text_store_path=text_store_path,
             table_store_path=table_store_path
         )
-        tools = create_rag_tools(text_retriever, table_retriever)
         
-        # 3. Define the deterministic task list (the agent's "to-do" list)
         task_queue = deque([
             "Consolidated Revenue (USD Billion)",
             "Consolidated Net Income (Profit After Tax)",
@@ -84,58 +83,153 @@ async def extract_data_with_agent(
             "Employee Utilization Rate (excluding trainees)",
             "Top 2-3 most critical risks from the Management Discussion & Analysis",
         ])
+        
+        final_results = FinancialReportData()
 
-        # 4. Create and run the agent graph
-        agent_graph = create_agent_graph(PLANNER_PROMPT_TEMPLATE, tools)
-        
-        # Set the global database session for the agent to use
-        set_global_db_session(db)
-        
-        # The initial state for the agent
-        initial_state = {
-            "task_queue": task_queue,
-            "current_task": "",
-            "extracted_data": FinancialReportData(),
-            "tool_names": [tool.name for tool in tools], # Pass tool names instead of objects
-            "planner_prompt": PLANNER_PROMPT_TEMPLATE,
-            "tool_output": "",
-            # --- PASS RUN ID TO AGENT ---
-            "run_id": run_id,
-        }
+        # Loop through each task and execute the powerful RAG chain
+        for task in task_queue:
+            crud.update_extraction_run_task(db, run_id, f"Processing: {task}")
+            print(f"--- RUN {run_id}: Starting task: {task} ---")
 
-        # A unique ID for this specific run
-        config = {"configurable": {"thread_id": str(uuid.uuid4())}}
+            try:
+                parser_model = TASK_PARSER_MAP.get(task)
+                if not parser_model:
+                    print(f"--- RUN {run_id}: Skipping task '{task}' - no parser defined.")
+                    continue
 
-        print("\n--- INVOKING AGENT ---")
-        # --- MODIFICATION START ---
-        final_run_state = {}
-        async for step in agent_graph.astream(initial_state, config=config):
-            node_name = list(step.keys())[0]
-            print(f"--- Finished Node: {node_name} ---")
-            # Store the state from the very last step. LangGraph ensures the final
-            # state is comprehensive.
-            final_run_state = step
+                rag_chain = create_rag_chain(text_retriever, table_retriever, parser_model)
+                parsed_result = await rag_chain.ainvoke({"task": task})
+
+                log_msg = f"Task: '{task}'.\nSuccess.\nResult: {parsed_result.dict()}"
+                crud.add_trace_log(db, run_id, "RAGChain", log_msg)
+                print(f"--- RUN {run_id}: SUCCESS for task: {task} ---")
+
+                # Map the parsed data back to our final schema
+                if isinstance(parsed_result, ParsedRevenue):
+                    final_results.consolidated_revenue = ConsolidatedRevenue(**parsed_result.dict())
+                elif isinstance(parsed_result, ParsedNetIncome):
+                    final_results.consolidated_net_income = ConsolidatedNetIncome(**parsed_result.dict())
+                elif isinstance(parsed_result, ParsedEPS):
+                    data = parsed_result.dict()
+                    data['unit'] = 'INR'
+                    final_results.diluted_eps = DilutedEPS(**data)
+                elif isinstance(parsed_result, ParsedSegmentContribution):
+                    for seg in parsed_result.top_segments:
+                        final_results.top_3_segment_contributions.append(SegmentContribution(**seg.dict()))
+                elif isinstance(parsed_result, ParsedUtilization):
+                    final_results.employee_utilization = EmployeeUtilization(**parsed_result.dict())
+                elif isinstance(parsed_result, ParsedKeyRisks):
+                     for risk in parsed_result.key_risks:
+                        final_results.key_management_risks.append(KeyManagementRisk(**risk.dict()))
+
+            except Exception as e:
+                # Log failures for individual tasks but continue the process
+                error_msg = f"Task: '{task}'.\nFailed.\nError: {str(e)}"
+                crud.add_trace_log(db, run_id, "RAGChain", error_msg)
+                print(f"--- RUN {run_id}: FAILED task: {task}. Error: {e} ---")
+                continue
+
+        crud.update_extraction_run_results(db, run_id, final_results)
+        crud.update_extraction_run_status(db, run_id, "completed")
+        crud.update_extraction_run_task(db, run_id, "Completed")
         
-        # After the loop, the final state is in the value of the last dictionary entry.
-        # We add multiple checks to prevent crashes.
-        last_node_name = list(final_run_state.keys())[0] if final_run_state else None
-        if last_node_name:
-            final_data = final_run_state.get(last_node_name, {}).get('extracted_data')
-        else:
-            final_data = FinancialReportData() # Return an empty object if the run fails completely
-        
-        print(f"\n--- AGENT RUN {run_id} COMPLETE ---")
-        crud.update_extraction_run_status(db=db, run_id=run_id, status="completed")
-        
-        return final_data
+        print(f"--- RUN {run_id} COMPLETED SUCCESSFULLY ---")
+        return {"run_id": run_id, "status": "processing_started"}
 
     except FileNotFoundError as e:
+        error_detail = f"Document not found: {str(e)}"
+        print(f"--- FILE NOT FOUND FOR RUN {run_id}: {error_detail} ---")
         crud.update_extraction_run_status(db=db, run_id=run_id, status="failed")
-        raise HTTPException(status_code=404, detail=str(e))
+        crud.update_extraction_run_task(db, run_id, "Failed - Document not found")
+        raise HTTPException(status_code=404, detail=error_detail)
     except Exception as e:
-        print(f"An unexpected error occurred during run {run_id}: {e}")
+        error_detail = f"An internal error occurred: {str(e)}"
+        print(f"--- CATASTROPHIC FAILURE FOR RUN {run_id}: {error_detail} ---")
         crud.update_extraction_run_status(db=db, run_id=run_id, status="failed")
-        raise HTTPException(status_code=500, detail=f"An internal error occurred: {str(e)}")
+        crud.update_extraction_run_task(db, run_id, "Failed")
+        raise HTTPException(status_code=500, detail=error_detail)
+
+# --- ADD THE FOLLOWING NEW ENDPOINTS ---
+
+@router.post("/documents/upload")
+async def upload_document(file: UploadFile = File(...)):
+    """
+    Handles uploading of a new PDF document.
+    """
+    upload_dir = "documents"
+    if not os.path.exists(upload_dir):
+        os.makedirs(upload_dir)
+        
+    file_path = os.path.join(upload_dir, file.filename)
+    if os.path.exists(file_path):
+        raise HTTPException(status_code=400, detail=f"File '{file.filename}' already exists.")
+
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        return {"filename": file.filename, "status": "uploaded successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not save file: {e}")
+
+
+@router.get("/documents", response_model=dict)
+async def get_available_documents():
+    """
+    Returns a list of PDF filenames available in the documents directory.
+    """
+    doc_dir = "documents"
+    if not os.path.exists(doc_dir):
+        return {"filenames": []}
+    
+    try:
+        filenames = [f for f in os.listdir(doc_dir) if f.endswith(".pdf")]
+        return {"filenames": filenames}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Could not read documents directory: {e}")
+
+
+@router.get("/extractions/{run_id}/status")
+async def get_extraction_status(run_id: int, db: Session = Depends(get_db)):
+    """
+    Polls for the status of a specific extraction run.
+    """
+    run = crud.get_extraction_run(db, run_id=run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Extraction run not found")
+    return {
+        "run_id": run.id,
+        "status": run.status,
+        "current_task": run.current_task,
+        "start_time": run.start_time,
+        "end_time": run.end_time
+    }
+
+
+@router.get("/extractions/{run_id}/results")
+async def get_extraction_results(run_id: int, db: Session = Depends(get_db)):
+    """
+    Retrieves the final results and trace logs for a completed extraction run.
+    """
+    run = crud.get_extraction_run_with_logs(db, run_id=run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Extraction run not found")
+    
+    # Manually format logs to avoid circular reference issues with Pydantic
+    trace_logs = [{
+        "timestamp": log.timestamp.isoformat(),
+        "node_name": log.node_name,
+        "log_message": log.log_message
+    } for log in run.logs]
+
+    return {
+        "run_id": run.id,
+        "status": run.status,
+        "filename": run.filename,
+        "results": run.results,
+        "trace_logs": trace_logs
+    }
+
+# --- END OF NEW ENDPOINTS ---
 
 # Keep the older endpoints for backward compatibility and testing
 @router.post("/extract-simple")
