@@ -1,0 +1,5 @@
+# packages/requirements.txt
+fastapi
+uvicorn
+gunicorn
+gitingest
